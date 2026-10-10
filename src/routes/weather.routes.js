@@ -15,6 +15,14 @@ import {
   getWeatherSchema
 } from "../validators/weather.validator.js";
 
+import {
+  getWeatherForecast
+} from "../controllers/weather-provider.controller.js";
+
+import {
+  getWeatherForecastSchema
+} from "../validators/weather-provider.validator.js";
+
 const router = Router();
 
 /**
@@ -96,6 +104,43 @@ router.post(
  *       404:
  *         description: Solar site not found
  */
+
+/**
+ * @swagger
+ * /api/v1/sites/{siteId}/weather/forecast:
+ *   get:
+ *     summary: Get hourly weather forecast for a solar site
+ *     description: >
+ *       Retrieves a 48-hour weather forecast from Open-Meteo.
+ *       These are model-derived forecast values, not measured observations.
+ *       Timestamps are returned in UTC.
+ *     tags:
+ *       - Weather
+ *     parameters:
+ *       - in: path
+ *         name: siteId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Solar site UUID
+ *     responses:
+ *       200:
+ *         description: Hourly weather forecast retrieved successfully
+ *       400:
+ *         description: Invalid site ID or site coordinates
+ *       404:
+ *         description: Solar site not found
+ *       502:
+ *         description: Weather provider unavailable or returned an invalid response
+ */
+
+router.get(
+  "/:siteId/weather/forecast",
+  validate(getWeatherForecastSchema),
+  getWeatherForecast
+);
+
 router.get(
   "/:siteId/weather",
   validate(listWeatherSchema),
