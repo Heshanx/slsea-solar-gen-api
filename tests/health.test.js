@@ -42,4 +42,30 @@ describe("API health endpoints", () => {
     expect(response.body.error).toBeDefined();
     expect(response.body.error.message).toBeDefined();
   });
+
+  it("should return 400 for malformed JSON", async () => {
+    const response = await request(app)
+      .post("/api/v1/sites")
+      .set("Content-Type", "application/json")
+      .send('{"name":');
+
+    expect(response.status).toBe(400);
+    expect(response.body.success).toBe(false);
+    expect(response.body.error.message).toBe(
+      "Invalid JSON request body"
+    );
+  });
+
+  it("should return 413 for an oversized JSON body", async () => {
+    const response = await request(app)
+      .post("/api/v1/sites")
+      .set("Content-Type", "application/json")
+      .send(JSON.stringify({ payload: "x".repeat(110 * 1024) }));
+
+    expect(response.status).toBe(413);
+    expect(response.body.success).toBe(false);
+    expect(response.body.error.message).toBe(
+      "Request body too large"
+    );
+  });
 });
