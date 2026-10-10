@@ -26,6 +26,10 @@ const options = {
       {
         name: "Solar Sites",
         description: "Solar site management"
+      },
+      {
+        name: "Solar Generation",
+        description: "Solar generation data ingestion and retrieval"
       }
     ],
 
@@ -164,6 +168,66 @@ const options = {
               example: true
             }
           }
+        },
+        SolarGeneration: {
+          type: "object",
+          properties: {
+            id: {
+              type: "integer",
+              example: 1
+            },
+            siteId: {
+              type: "string",
+              format: "uuid"
+            },
+            recordedAt: {
+              type: "string",
+              format: "date-time",
+              example: "2026-10-10T08:00:00+05:30"
+            },
+            powerKw: {
+              type: "number",
+              nullable: true,
+              example: 42.5
+            },
+            energyKwh: {
+              type: "number",
+              nullable: true,
+              example: 38.7
+            },
+            createdAt: {
+              type: "string",
+              format: "date-time"
+            }
+          }
+        },
+
+        CreateSolarGeneration: {
+          type: "object",
+          required: ["recordedAt"],
+          properties: {
+            recordedAt: {
+              type: "string",
+              format: "date-time",
+              example: "2026-10-10T08:00:00+05:30"
+            },
+            powerKw: {
+              type: "number",
+              minimum: 0,
+              nullable: true,
+              example: 42.5
+            },
+            energyKwh: {
+              type: "number",
+              minimum: 0,
+              nullable: true,
+              example: 38.7
+            }
+          },
+          anyOf: [
+            { required: ["powerKw"] },
+            { required: ["energyKwh"] }
+          ]
         },
 
         Error: {
