@@ -86,19 +86,32 @@ export const getSiteWeatherForecast = async (siteId) => {
     );
   }
 
+  const hourly = providerData.hourly;
+
+  const requiredHourlyFields = [
+    "time",
+    "temperature_2m",
+    "relative_humidity_2m",
+    "cloud_cover",
+    "wind_speed_10m",
+    "shortwave_radiation"
+  ];
+
   if (
-    !providerData.hourly ||
-    !Array.isArray(providerData.hourly.time) ||
-    !Array.isArray(providerData.hourly.temperature_2m)
+    !hourly ||
+    requiredHourlyFields.some(
+      (field) => !Array.isArray(hourly[field])
+    ) ||
+    hourly.time.length === 0 ||
+    requiredHourlyFields.some(
+      (field) => hourly[field].length !== hourly.time.length
+    )
   ) {
     throw new AppError(
       "Weather provider returned an unexpected response",
       502
     );
   }
-
-  const hourly = providerData.hourly;
-
   const forecast = hourly.time.map((time, index) => ({
     recordedAt: `${time}:00Z`,
     temperatureC: hourly.temperature_2m[index] ?? null,
