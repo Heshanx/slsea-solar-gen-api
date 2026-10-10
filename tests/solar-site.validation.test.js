@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
+import { listSolarSitesSchema } from "../src/validators/solar-site.validator.js";
 
 import app from "../src/app.js";
 
@@ -62,5 +63,48 @@ describe("Solar site request validation", () => {
     expect(
       errors.some((error) => error.field === "body.latitude")
     ).toBe(true);
+  });
+
+    it("should reject a page number below 1", async () => {
+    const response = await request(app)
+      .get("/api/v1/sites?page=0&limit=20");
+
+    expect(response.status).toBe(400);
+    expect(response.body.success).toBe(false);
+    expect(response.body.error.message).toBe("Validation failed");
+
+    const errors =
+      response.body.error.details.validationErrors;
+
+    expect(
+      errors.some((error) => error.field === "query.page")
+    ).toBe(true);
+  });
+
+  it("should reject a page limit greater than 100", async () => {
+    const response = await request(app)
+      .get("/api/v1/sites?page=1&limit=101");
+
+    expect(response.status).toBe(400);
+    expect(response.body.success).toBe(false);
+
+    const errors =
+      response.body.error.details.validationErrors;
+
+    expect(
+      errors.some((error) => error.field === "query.limit")
+    ).toBe(true);
+  });
+
+  it("should apply default pagination values", () => {
+    const result = listSolarSitesSchema.safeParse({
+      body: {},
+      params: {},
+      query: {}
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data.query.page).toBe(1);
+    expect(result.data.query.limit).toBe(20);
   });
 });
