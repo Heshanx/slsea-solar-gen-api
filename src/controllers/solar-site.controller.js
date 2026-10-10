@@ -1,4 +1,5 @@
 import * as solarSiteService from "../services/solar-site.service.js";
+import { mapSolarSite } from "../utils/mappers/solar-site.mapper.js";
 
 export const getSites = async (req, res, next) => {
   try {
@@ -21,7 +22,7 @@ export const getSites = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      data: result.data,
+      data: result.data.map(mapSolarSite),
       pagination: {
         page,
         limit,
@@ -42,7 +43,7 @@ export const getSite = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      data: site
+      data: mapSolarSite(site)
     });
   } catch (error) {
     next(error);
@@ -55,7 +56,7 @@ export const createSite = async (req, res, next) => {
 
     res.status(201).json({
       success: true,
-      data: site
+      data: mapSolarSite(site)
     });
   } catch (error) {
     next(error);
@@ -71,7 +72,7 @@ export const updateSite = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      data: site
+      data: mapSolarSite(site)
     });
   } catch (error) {
     next(error);
