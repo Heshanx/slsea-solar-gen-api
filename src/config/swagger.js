@@ -30,6 +30,10 @@ const options = {
       {
         name: "Solar Generation",
         description: "Solar generation data ingestion and retrieval"
+      },
+      {
+        name: "Weather",
+        description: "Weather observations associated with solar sites"
       }
     ],
 
@@ -227,6 +231,108 @@ const options = {
           anyOf: [
             { required: ["powerKw"] },
             { required: ["energyKwh"] }
+          ]
+        },
+        
+        Weather: {
+          type: "object",
+          properties: {
+            id: {
+              type: "integer",
+              example: 1
+            },
+            siteId: {
+              type: "string",
+              format: "uuid"
+            },
+            recordedAt: {
+              type: "string",
+              format: "date-time",
+              example: "2026-10-10T08:00:00+05:30"
+            },
+            temperatureC: {
+              type: "number",
+              nullable: true,
+              example: 29.5
+            },
+            irradianceWM2: {
+              type: "number",
+              nullable: true,
+              example: 750
+            },
+            cloudCoverPercent: {
+              type: "number",
+              nullable: true,
+              example: 25
+            },
+            windSpeedMs: {
+              type: "number",
+              nullable: true,
+              example: 3.2
+            },
+            humidityPercent: {
+              type: "number",
+              nullable: true,
+              example: 78
+            },
+            createdAt: {
+              type: "string",
+              format: "date-time"
+            }
+          }
+        },
+
+        CreateWeather: {
+          type: "object",
+          required: ["recordedAt"],
+          properties: {
+            recordedAt: {
+              type: "string",
+              format: "date-time",
+              example: "2026-10-10T08:00:00+05:30"
+            },
+            temperatureC: {
+              type: "number",
+              minimum: -100,
+              maximum: 70,
+              nullable: true,
+              example: 29.5
+            },
+            irradianceWM2: {
+              type: "number",
+              minimum: 0,
+              maximum: 2000,
+              nullable: true,
+              example: 750
+            },
+            cloudCoverPercent: {
+              type: "number",
+              minimum: 0,
+              maximum: 100,
+              nullable: true,
+              example: 25
+            },
+            windSpeedMs: {
+              type: "number",
+              minimum: 0,
+              maximum: 150,
+              nullable: true,
+              example: 3.2
+            },
+            humidityPercent: {
+              type: "number",
+              minimum: 0,
+              maximum: 100,
+              nullable: true,
+              example: 78
+            }
+          },
+          anyOf: [
+            { required: ["temperatureC"] },
+            { required: ["irradianceWM2"] },
+            { required: ["cloudCoverPercent"] },
+            { required: ["windSpeedMs"] },
+            { required: ["humidityPercent"] }
           ]
         },
 
