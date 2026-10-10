@@ -4,6 +4,7 @@ import helmet from "helmet";
 import morgan from "morgan";
 
 import routes from "./routes/index.js";
+import docsRoutes from "./routes/docs.routes.js";
 import { notFound } from "./middleware/not-found.middleware.js";
 import { errorHandler } from "./middleware/error.middleware.js";
 import { env } from "./config/env.js";
@@ -35,6 +36,7 @@ app.get("/", (req, res) => {
 });
 
 app.use(`/api/${env.apiVersion}`, routes);
+app.use(`/api/${env.apiVersion}/docs`, docsRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
