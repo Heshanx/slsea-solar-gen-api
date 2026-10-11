@@ -12,6 +12,7 @@ const router = Router();
  *     tags:
  *       - Health
  *     summary: Check API health
+ *     security: []
  *     responses:
  *       200:
  *         description: API is healthy
@@ -25,6 +26,7 @@ router.get("/", getHealth);
  *     tags:
  *       - Health
  *     summary: Check database connectivity
+ *     security: []
  *     responses:
  *       200:
  *         description: Database connection is healthy
