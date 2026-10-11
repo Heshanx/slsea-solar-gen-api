@@ -18,11 +18,56 @@ if (nodeEnv !== "test" && !databaseUrl.trim()) {
 
 const apiVersion = process.env.API_VERSION || "v1";
 const corsOrigin = process.env.CORS_ORIGIN || "*";
+const oidcIssuer = (process.env.AUTH_ISSUER || "").trim();
+const oidcAudience = (process.env.AUTH_AUDIENCE || "").trim();
+const oidcJwksUrl = (process.env.AUTH_JWKS_URL || "").trim();
+const oidcAlgorithms = (process.env.AUTH_ALLOWED_ALGORITHMS || "RS256,ES256")
+  .split(",")
+  .map((algorithm) => algorithm.trim())
+  .filter(Boolean);
+const oidcClockTolerance = Number(
+  process.env.AUTH_CLOCK_TOLERANCE_SECONDS || "5"
+);
+const supportedOidcAlgorithms = new Set(["RS256", "ES256"]);
+
+const isHttpsUrl = (value) => {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" &&
+      !url.username &&
+      !url.password &&
+      !url.search &&
+      !url.hash;
+  } catch {
+    return false;
+  }
+};
+
+const oidcConfigValid =
+  oidcIssuer.length > 0 &&
+  oidcAudience.length > 0 &&
+  isHttpsUrl(oidcIssuer) &&
+  isHttpsUrl(oidcJwksUrl) &&
+  oidcAlgorithms.length > 0 &&
+  oidcAlgorithms.every((algorithm) =>
+    supportedOidcAlgorithms.has(algorithm)
+  ) &&
+  Number.isInteger(oidcClockTolerance) &&
+  oidcClockTolerance >= 0 &&
+  oidcClockTolerance <= 120;
 
 export const env = {
   nodeEnv,
   port,
   databaseUrl,
   corsOrigin,
-  apiVersion
+  apiVersion,
+  oidc: {
+    issuer: oidcIssuer,
+    audience: oidcAudience,
+    jwksUrl: oidcJwksUrl,
+    algorithms: oidcAlgorithms,
+    clockTolerance: oidcClockTolerance,
+    configured: oidcConfigValid
+  }
 };

@@ -25,10 +25,14 @@ export const findAllBySite = async (
     page = 1,
     limit = 50,
     from,
-    to
+    to,
+    sort = "desc"
   } = {}
 ) => {
   const offset = (page - 1) * limit;
+  const orderBy = sort === "asc"
+    ? sql`recorded_at asc, id asc`
+    : sql`recorded_at desc, id desc`;
 
   const result = await sql`
     select
@@ -50,7 +54,7 @@ export const findAllBySite = async (
           ? sql`and recorded_at <= ${to}`
           : sql``
       }
-    order by recorded_at desc
+    order by ${orderBy}
     limit ${limit}
     offset ${offset}
   `;

@@ -71,7 +71,9 @@ export const listSolarGenerationSchema = z
       to: z.string().datetime({
         offset: true,
         message: "to must be a valid ISO 8601 timestamp with a timezone"
-      }).optional()
+      }).optional(),
+
+      sort: z.enum(["asc", "desc"]).default("desc")
     })
   })
   .refine(
