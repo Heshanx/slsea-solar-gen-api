@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { listSolarSitesSchema } from "../src/validators/solar-site.validator.js";
+import { issueTestToken } from "./helpers/auth-test-support.js";
 
 import app from "../src/app.js";
 
@@ -8,7 +9,7 @@ describe("Solar site request validation", () => {
   it("should reject an invalid site UUID", async () => {
     const response = await request(app).get(
       "/api/v1/sites/not-a-uuid"
-    );
+    ).set("Authorization", `Bearer ${await issueTestToken()}`);
 
     expect(response.status).toBe(400);
     expect(response.body.success).toBe(false);
@@ -25,6 +26,7 @@ describe("Solar site request validation", () => {
   it("should reject a create request with missing required fields", async () => {
     const response = await request(app)
       .post("/api/v1/sites")
+      .set("Authorization", `Bearer ${await issueTestToken({ actorType: "registry_admin" })}`)
       .send({});
 
     expect(response.status).toBe(400);
@@ -46,6 +48,7 @@ describe("Solar site request validation", () => {
   it("should reject coordinates outside the valid range", async () => {
     const response = await request(app)
       .post("/api/v1/sites")
+      .set("Authorization", `Bearer ${await issueTestToken({ actorType: "registry_admin" })}`)
       .send({
         name: "Automated Test Site",
         latitude: 91,
@@ -67,7 +70,8 @@ describe("Solar site request validation", () => {
 
     it("should reject a page number below 1", async () => {
     const response = await request(app)
-      .get("/api/v1/sites?page=0&limit=20");
+      .get("/api/v1/sites?page=0&limit=20")
+      .set("Authorization", `Bearer ${await issueTestToken()}`);
 
     expect(response.status).toBe(400);
     expect(response.body.success).toBe(false);
@@ -83,7 +87,8 @@ describe("Solar site request validation", () => {
 
   it("should reject a page limit greater than 100", async () => {
     const response = await request(app)
-      .get("/api/v1/sites?page=1&limit=101");
+      .get("/api/v1/sites?page=1&limit=101")
+      .set("Authorization", `Bearer ${await issueTestToken()}`);
 
     expect(response.status).toBe(400);
     expect(response.body.success).toBe(false);

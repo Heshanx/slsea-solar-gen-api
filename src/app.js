@@ -7,9 +7,14 @@ import routes from "./routes/index.js";
 import docsRoutes from "./routes/docs.routes.js";
 import { notFound } from "./middleware/not-found.middleware.js";
 import { errorHandler } from "./middleware/error.middleware.js";
+import { apiRateLimiter } from "./middleware/rate-limit.middleware.js";
 import { env } from "./config/env.js";
 
 const app = express();
+
+if (process.env.RENDER) {
+  app.set("trust proxy", 1);
+}
 
 app.disable("x-powered-by");
 
@@ -35,8 +40,8 @@ app.get("/", (req, res) => {
   });
 });
 
-app.use(`/api/${env.apiVersion}`, routes);
 app.use(`/api/${env.apiVersion}/docs`, docsRoutes);
+app.use(`/api/${env.apiVersion}`, apiRateLimiter, routes);
 
 app.use(notFound);
 app.use(errorHandler);

@@ -88,6 +88,13 @@ router.post(
  *         schema:
  *           type: string
  *           format: date-time
+ *       - in: query
+ *         name: sort
+ *         description: Sort by recorded timestamp; ties are ordered by reading ID
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: desc
  *     responses:
  *       200:
  *         description: Generation records returned

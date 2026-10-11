@@ -11,9 +11,19 @@ const options = {
         "REST API for solar site management, generation data, weather data, and forecasting."
     },
 
+    security: [{ BearerAuth: [] }],
+
     servers: [
+      ...(process.env.RENDER_EXTERNAL_URL
+        ? [
+            {
+              url: process.env.RENDER_EXTERNAL_URL,
+              description: "Hosted API"
+            }
+          ]
+        : []),
       {
-        url: "http://localhost:5000",
+        url: `http://localhost:${process.env.PORT || 5000}`,
         description: "Local development server"
       }
     ],
@@ -38,6 +48,15 @@ const options = {
     ],
 
     components: {
+      securitySchemes: {
+        BearerAuth: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "JWT",
+          description:
+            "OIDC access token validated against the configured issuer and JWKS."
+        }
+      },
       schemas: {
         SolarSite: {
           type: "object",
