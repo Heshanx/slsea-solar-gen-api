@@ -218,6 +218,11 @@ const options = {
               nullable: true,
               example: 38.7
             },
+            voltageV: {
+              type: "number",
+              exclusiveMinimum: 0,
+              example: 400
+            },
             createdAt: {
               type: "string",
               format: "date-time"
@@ -227,12 +232,18 @@ const options = {
 
         CreateSolarGeneration: {
           type: "object",
-          required: ["recordedAt"],
+          required: ["recordedAt", "voltageV"],
           properties: {
             recordedAt: {
               type: "string",
               format: "date-time",
               example: "2026-10-10T08:00:00+05:30"
+            },
+            voltageV: {
+              type: "number",
+              exclusiveMinimum: 0,
+              example: 400,
+              description: "Measured voltage in volts; must be greater than zero."
             },
             powerKw: {
               type: "number",

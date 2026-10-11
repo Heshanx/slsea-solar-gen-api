@@ -21,14 +21,21 @@ const generationBody = z
       message: "recordedAt must be a valid ISO 8601 timestamp with a timezone"
     }),
 
+    voltageV: z
+      .number()
+      .finite("Voltage must be a finite number")
+      .positive("Voltage must be greater than zero"),
+
     powerKw: z
       .number()
+      .finite("Power must be a finite number")
       .min(0, "Power cannot be negative")
       .nullable()
       .optional(),
 
     energyKwh: z
       .number()
+      .finite("Energy must be a finite number")
       .min(0, "Energy cannot be negative")
       .nullable()
       .optional()

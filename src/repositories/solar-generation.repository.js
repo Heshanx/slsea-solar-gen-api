@@ -8,6 +8,7 @@ export const findById = async (id, siteId) => {
       recorded_at,
       power_kw,
       energy_kwh,
+      voltage_v,
       created_at
     from public.solar_generation
     where id = ${id}
@@ -84,20 +85,23 @@ export const create = async ({
   siteId,
   recordedAt,
   powerKw,
-  energyKwh
+  energyKwh,
+  voltageV
 }) => {
   const result = await sql`
     insert into public.solar_generation (
       site_id,
       recorded_at,
       power_kw,
-      energy_kwh
+      energy_kwh,
+      voltage_v
     )
     values (
       ${siteId},
       ${recordedAt},
-      ${powerKw},
-      ${energyKwh}
+      ${powerKw ?? null},
+      ${energyKwh ?? null},
+      ${voltageV}
     )
     returning
       id,
@@ -105,6 +109,7 @@ export const create = async ({
       recorded_at,
       power_kw,
       energy_kwh,
+      voltage_v,
       created_at
   `;
 
