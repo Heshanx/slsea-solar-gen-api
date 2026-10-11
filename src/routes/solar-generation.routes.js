@@ -1,10 +1,13 @@
+import { authorizeSiteRequest } from "../middleware/authorization.middleware.js";
+import { methodNotAllowed } from "../middleware/method-not-allowed.middleware.js";
 
 import { Router } from "express";
 
 import {
   createGeneration,
   getGeneration,
-  getGenerationById
+  getGenerationById,
+  getLatestGeneration
 } from "../controllers/solar-generation.controller.js";
 
 import { validate } from "../middleware/validate.middleware.js";
@@ -12,7 +15,8 @@ import { validate } from "../middleware/validate.middleware.js";
 import {
   createSolarGenerationSchema,
   listSolarGenerationSchema,
-  getSolarGenerationSchema
+  getSolarGenerationSchema,
+  getLatestSolarGenerationSchema
 } from "../validators/solar-generation.validator.js";
 
 const router = Router();
@@ -39,15 +43,26 @@ const router = Router();
  *             $ref: '#/components/schemas/CreateSolarGeneration'
  *     responses:
  *       201:
- *         description: Generation record created
+ *         description: Generation record created; Location identifies the new record
+ *         headers:
+ *           Location:
+ *             schema:
+ *               type: string
+ *             description: Relative URL of the created generation record
  *       400:
  *         description: Invalid request data
+ *       401:
+ *         description: Missing or invalid bearer token
+ *       403:
+ *         description: Caller is not authorized for this installation
+ *       409:
+ *         description: A reading already exists for this installation and timestamp
  *       404:
  *         description: Solar site not found
  */
 router.post(
   "/:siteId/generation",
-  validate(createSolarGenerationSchema),
+  authorizeSiteRequest, validate(createSolarGenerationSchema),
   createGeneration
 );
 
@@ -98,15 +113,57 @@ router.post(
  *     responses:
  *       200:
  *         description: Generation records returned
+ *         headers:
+ *           ETag:
+ *             schema:
+ *               type: string
+ *             description: Validator for this page; send it in If-None-Match
+ *       304:
+ *         description: The cached representation is current; response body is empty
  *       400:
  *         description: Invalid query parameters
  *       404:
  *         description: Solar site not found
+ *       401:
+ *         description: Missing or invalid bearer token
+ *       403:
+ *         description: Caller is not authorized for this installation
  */
 router.get(
   "/:siteId/generation",
-  validate(listSolarGenerationSchema),
+  authorizeSiteRequest, validate(listSolarGenerationSchema),
   getGeneration
+);
+
+/**
+ * @openapi
+ * /api/v1/sites/{siteId}/generation/latest:
+ *   get:
+ *     tags: [Solar Generation]
+ *     summary: Get the latest generation reading for a site
+ *     description: Returns the reading with the greatest recordedAt value, with ID as a stable tie-breaker. Regional callers can read only sites in their assigned jurisdiction.
+ *     parameters:
+ *       - in: path
+ *         name: siteId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Latest generation reading
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/GenerationResponse' }
+ *         headers:
+ *           ETag:
+ *             schema: { type: string }
+ *       304: { description: Representation is current; response body is empty }
+ *       404: { description: Site is outside the caller's scope or has no readings }
+ *       401: { description: Missing or invalid bearer token }
+ */
+router.get(
+  "/:siteId/generation/latest",
+  authorizeSiteRequest, validate(getLatestSolarGenerationSchema),
+  getLatestGeneration
 );
 
 /**
@@ -139,8 +196,11 @@ router.get(
  */
 router.get(
   "/:siteId/generation/:id",
-  validate(getSolarGenerationSchema),
+  authorizeSiteRequest, validate(getSolarGenerationSchema),
   getGenerationById
 );
+
+router.all("/:siteId/generation", methodNotAllowed("GET, HEAD, POST"));
+router.all(["/:siteId/generation/latest", "/:siteId/generation/:id"], methodNotAllowed("GET, HEAD"));
 
 export default router;

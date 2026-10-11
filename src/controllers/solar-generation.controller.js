@@ -1,6 +1,7 @@
 
 import * as solarGenerationService from "../services/solar-generation.service.js";
 import { mapSolarGeneration } from "../utils/mappers/solar-generation.mapper.js";
+import { sendConditionalJson } from "../utils/conditional-response.js";
 
 export const createGeneration = async (req, res, next) => {
   try {
@@ -11,6 +12,7 @@ export const createGeneration = async (req, res, next) => {
       siteId
     });
 
+    res.location(`${req.baseUrl}/${siteId}/generation/${generation.id}`);
     res.status(201).json({
       success: true,
       data: mapSolarGeneration(generation)
@@ -31,7 +33,7 @@ export const getGeneration = async (req, res, next) => {
       from,
       to,
       sort
-    });
+    }, req.auth.jurisdiction);
 
     const totalPages =
       result.total === 0
@@ -55,7 +57,7 @@ export const getGeneration = async (req, res, next) => {
       return `${url.pathname}${url.search}`;
     };
 
-    res.status(200).json({
+    const responseBody = {
       success: true,
       data: result.data.map(mapSolarGeneration),
       pagination: {
@@ -66,7 +68,8 @@ export const getGeneration = async (req, res, next) => {
         next: pageLink(page + 1),
         previous: pageLink(page - 1)
       }
-    });
+    };
+    return sendConditionalJson(req, res, responseBody);
   } catch (error) {
     next(error);
   }
@@ -77,12 +80,28 @@ export const getGenerationById = async (req, res, next) => {
     const { siteId, id } = req.validated.params;
 
     const generation =
-      await solarGenerationService.getGenerationById(siteId, id);
+      await solarGenerationService.getGenerationById(
+        siteId, id, req.auth.jurisdiction
+      );
 
-    res.status(200).json({
+    return sendConditionalJson(req, res, { success: true, data: mapSolarGeneration(generation) }, generation.created_at);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getLatestGeneration = async (req, res, next) => {
+  try {
+    const { siteId } = req.validated.params;
+    const generation = await solarGenerationService.getLatestGeneration(
+      siteId,
+      req.auth.jurisdiction
+    );
+    const responseBody = {
       success: true,
       data: mapSolarGeneration(generation)
-    });
+    };
+    return sendConditionalJson(req, res, responseBody, generation.created_at);
   } catch (error) {
     next(error);
   }

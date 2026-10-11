@@ -1,3 +1,5 @@
+import { sendConditionalJson } from "../utils/conditional-response.js";
+import { pageMetadata } from "../utils/pagination.js";
 import * as solarSiteService from "../services/solar-site.service.js";
 import { mapSolarSite } from "../utils/mappers/solar-site.mapper.js";
 
@@ -12,23 +14,13 @@ export const getSites = async (req, res, next) => {
     const result = await solarSiteService.getAllSites({
       page,
       limit,
-      active
+      active,
+      jurisdiction: req.auth.jurisdiction
     });
 
-    const totalPages =
-      result.total === 0
-        ? 0
-        : Math.ceil(result.total / limit);
-
-    res.status(200).json({
-      success: true,
-      data: result.data.map(mapSolarSite),
-      pagination: {
-        page,
-        limit,
-        total: result.total,
-        totalPages
-      }
+    return sendConditionalJson(req, res, {
+      success: true, data: result.data.map(mapSolarSite),
+      pagination: pageMetadata(req, { page, limit }, result.total)
     });
   } catch (error) {
     next(error);
@@ -38,13 +30,13 @@ export const getSites = async (req, res, next) => {
 export const getSite = async (req, res, next) => {
   try {
     const site = await solarSiteService.getSiteById(
-      req.params.id
+      req.validated.params.id,
+      req.auth.jurisdiction
     );
 
-    res.status(200).json({
-      success: true,
-      data: mapSolarSite(site)
-    });
+    return sendConditionalJson(req, res, {
+      success: true, data: mapSolarSite(site)
+    }, site.updated_at);
   } catch (error) {
     next(error);
   }
@@ -52,8 +44,11 @@ export const getSite = async (req, res, next) => {
 
 export const createSite = async (req, res, next) => {
   try {
-    const site = await solarSiteService.createSite(req.body);
+    const site = await solarSiteService.createSite(
+      req.validated.body
+    );
 
+    res.location(`${req.baseUrl}/${site.id}`);
     res.status(201).json({
       success: true,
       data: mapSolarSite(site)
@@ -66,8 +61,9 @@ export const createSite = async (req, res, next) => {
 export const updateSite = async (req, res, next) => {
   try {
     const site = await solarSiteService.updateSite(
-      req.params.id,
-      req.body
+      req.validated.params.id,
+      req.validated.body,
+      req.get("if-match")
     );
 
     res.status(200).json({
@@ -81,7 +77,7 @@ export const updateSite = async (req, res, next) => {
 
 export const deleteSite = async (req, res, next) => {
   try {
-    await solarSiteService.deleteSite(req.params.id);
+    await solarSiteService.deleteSite(req.validated.params.id, req.get("if-match"));
 
     res.status(204).send();
   } catch (error) {

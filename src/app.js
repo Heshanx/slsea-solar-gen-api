@@ -3,12 +3,14 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 
+import { requireJsonRepresentation } from "./middleware/representation.middleware.js";
 import routes from "./routes/index.js";
 import docsRoutes from "./routes/docs.routes.js";
 import { notFound } from "./middleware/not-found.middleware.js";
 import { errorHandler } from "./middleware/error.middleware.js";
 import { apiRateLimiter } from "./middleware/rate-limit.middleware.js";
 import { env } from "./config/env.js";
+import { remoteDevelopmentGuard } from "./middleware/remote-development.middleware.js";
 
 const app = express();
 
@@ -20,7 +22,8 @@ app.disable("x-powered-by");
 
 app.use(
   cors({
-    origin: env.corsOrigin
+    origin: env.corsOrigin,
+    exposedHeaders: ["ETag", "Location"]
   })
 );
 
@@ -41,7 +44,7 @@ app.get("/", (req, res) => {
 });
 
 app.use(`/api/${env.apiVersion}/docs`, docsRoutes);
-app.use(`/api/${env.apiVersion}`, apiRateLimiter, routes);
+app.use(`/api/${env.apiVersion}`, apiRateLimiter, remoteDevelopmentGuard(env), requireJsonRepresentation, routes);
 
 app.use(notFound);
 app.use(errorHandler);

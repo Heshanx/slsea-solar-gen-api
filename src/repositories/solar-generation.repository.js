@@ -1,4 +1,5 @@
 import sql from "../config/database.js";
+import { AppError } from "../utils/AppError.js";
 
 export const findById = async (id, siteId) => {
   const result = await sql`
@@ -9,10 +10,31 @@ export const findById = async (id, siteId) => {
       power_kw,
       energy_kwh,
       voltage_v,
+      energy_semantics,
       created_at
     from public.solar_generation
     where id = ${id}
       and site_id = ${siteId}
+    limit 1
+  `;
+
+  return result[0] || null;
+};
+
+export const findLatestBySite = async (siteId) => {
+  const result = await sql`
+    select
+      id,
+      site_id,
+      recorded_at,
+      power_kw,
+      energy_kwh,
+      voltage_v,
+      energy_semantics,
+      created_at
+    from public.solar_generation
+    where site_id = ${siteId} and recorded_at <= now()
+    order by recorded_at desc, id desc
     limit 1
   `;
 
@@ -41,6 +63,8 @@ export const findAllBySite = async (
       recorded_at,
       power_kw,
       energy_kwh,
+      voltage_v,
+      energy_semantics,
       created_at
     from public.solar_generation
     where site_id = ${siteId}
@@ -88,7 +112,12 @@ export const create = async ({
   energyKwh,
   voltageV
 }) => {
-  const result = await sql`
+  try {
+    return await sql.begin(async tx => {
+      const sites = await tx`select id from public.solar_sites
+        where id = ${siteId} and deleted_at is null and is_active for share`;
+      if (!sites[0]) throw new AppError("Active solar site not found", 404);
+      const result = await tx`
     insert into public.solar_generation (
       site_id,
       recorded_at,
@@ -110,8 +139,19 @@ export const create = async ({
       power_kw,
       energy_kwh,
       voltage_v,
+      energy_semantics,
       created_at
-  `;
+    `;
 
-  return result[0];
+      return result[0];
+    });
+  } catch (error) {
+    if (error.code === "23505") {
+      throw new AppError(
+        "A generation reading already exists for this installation and timestamp",
+        409
+      );
+    }
+    throw error;
+  }
 };

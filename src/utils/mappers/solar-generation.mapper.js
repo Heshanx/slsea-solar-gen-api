@@ -6,6 +6,7 @@ export const mapSolarGeneration = (generation) => {
   return {
     id: Number(generation.id),
     siteId: generation.site_id,
+    energySemantics: generation.energy_semantics ?? "legacy_unspecified",
     recordedAt: generation.recorded_at,
     powerKw:
       generation.power_kw == null

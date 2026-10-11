@@ -1,6 +1,8 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
+import { errorBody } from "../utils/error-response.js";
 import { env } from "../config/env.js";
+import { findActiveAssignment } from "../repositories/auth-principal.repository.js";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -11,13 +13,10 @@ const sendAuthError = (res, status, code, message) => {
   }
 
   res.set("Cache-Control", "no-store");
-  return res.status(status).json({
-    success: false,
-    error: { code, message }
-  });
+  return res.status(status).json(errorBody(code, message));
 };
 
-const isValidActorClaims = (claims) => {
+const isValidActorAssignment = (claims) => {
   if (claims.actor_type === "device") {
     return typeof claims.installation_id === "string" &&
       UUID_PATTERN.test(claims.installation_id);
@@ -42,7 +41,10 @@ const isValidActorClaims = (claims) => {
   return claims.actor_type === "registry_admin";
 };
 
-export const createAuthenticationMiddleware = (oidcConfig) => {
+export const createAuthenticationMiddleware = (
+  oidcConfig,
+  resolveAssignment = findActiveAssignment
+) => {
   let remoteJwks;
 
   return async (req, res, next) => {
@@ -67,6 +69,7 @@ export const createAuthenticationMiddleware = (oidcConfig) => {
       );
     }
 
+    let assignmentLookupFailed = false;
     try {
       remoteJwks ??= createRemoteJWKSet(new URL(oidcConfig.jwksUrl), {
         timeoutDuration: 5000,
@@ -82,7 +85,19 @@ export const createAuthenticationMiddleware = (oidcConfig) => {
         clockTolerance: oidcConfig.clockTolerance
       });
 
-      if (!isValidActorClaims(payload)) {
+      let assignment;
+      try {
+        assignment = await resolveAssignment(payload.iss, payload.sub);
+      } catch (error) {
+        assignmentLookupFailed = true;
+        throw error;
+      }
+
+      if (!assignment || !isValidActorAssignment({
+        actor_type: assignment.actorType,
+        installation_id: assignment.installationId,
+        jurisdiction: assignment.jurisdiction
+      })) {
         return sendAuthError(
           res,
           403,
@@ -93,16 +108,23 @@ export const createAuthenticationMiddleware = (oidcConfig) => {
 
       req.auth = {
         subject: payload.sub,
-        actorType: payload.actor_type,
-        installationId: payload.installation_id,
-        jurisdiction: payload.jurisdiction,
-        scopes: typeof payload.scope === "string"
-          ? payload.scope.split(/\s+/).filter(Boolean)
-          : []
+        issuer: payload.iss,
+        actorType: assignment.actorType,
+        installationId: assignment.installationId,
+        jurisdiction: assignment.jurisdiction,
+        scopes: assignment.scopes || []
       };
 
       return next();
     } catch (error) {
+      if (assignmentLookupFailed) {
+        return sendAuthError(
+          res,
+          503,
+          "AUTHORIZATION_UNAVAILABLE",
+          "Authorization assignments could not be loaded"
+        );
+      }
       if (
         error?.code === "ERR_JWKS_TIMEOUT" ||
         error?.code === "ERR_JWKS_INVALID" ||

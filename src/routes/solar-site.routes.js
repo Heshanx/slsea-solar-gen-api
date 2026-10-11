@@ -1,3 +1,6 @@
+import { authorizeSiteRequest } from "../middleware/authorization.middleware.js";
+import { methodNotAllowed } from "../middleware/method-not-allowed.middleware.js";
+import { getOverview } from "../controllers/analytics.controller.js";
 import { Router } from "express";
 
 import {
@@ -19,6 +22,7 @@ import {
 } from "../validators/solar-site.validator.js";
 
 const router = Router();
+router.get("/:id/overview", authorizeSiteRequest, validate(getSolarSiteSchema), getOverview);
 
 /**
  * @openapi
@@ -51,7 +55,7 @@ const router = Router();
  */
 router.get(
   "/",
-  validate(listSolarSitesSchema),
+  authorizeSiteRequest, validate(listSolarSitesSchema),
   getSites
 );
 
@@ -76,7 +80,7 @@ router.get(
  */
 router.post(
   "/",
-  validate(createSolarSiteSchema),
+  authorizeSiteRequest, validate(createSolarSiteSchema),
   createSite
 );
 
@@ -102,7 +106,7 @@ router.post(
  */
 router.get(
   "/:id",
-  validate(getSolarSiteSchema),
+  authorizeSiteRequest, validate(getSolarSiteSchema),
   getSite
 );
 
@@ -136,7 +140,7 @@ router.get(
  */
 router.put(
   "/:id",
-  validate(updateSolarSiteSchema),
+  authorizeSiteRequest, validate(updateSolarSiteSchema),
   updateSite
 );
 
@@ -162,8 +166,12 @@ router.put(
  */
 router.delete(
   "/:id",
-  validate(deleteSolarSiteSchema),
+  authorizeSiteRequest, validate(deleteSolarSiteSchema),
   deleteSite
 );
+
+router.all("/", methodNotAllowed("GET, HEAD, POST"));
+router.all("/:id/overview", methodNotAllowed("GET, HEAD"));
+router.all("/:id", methodNotAllowed("GET, HEAD, PUT, DELETE"));
 
 export default router;

@@ -17,6 +17,11 @@ const validRequest = {
 };
 
 describe("Solar generation validation", () => {
+  it("rejects values outside database numeric precision before inserting", () => {
+    for (const [field, value] of [['voltageV', 0.001], ['voltageV', 1000000], ['powerKw', 1000000000], ['energyKwh', 1000000000]]) {
+      expect(createSolarGenerationSchema.safeParse({ ...validRequest, body: { ...validRequest.body, [field]: value } }).success).toBe(false);
+    }
+  });
   it("accepts a valid generation reading with voltage", () => {
     const result = createSolarGenerationSchema.safeParse(validRequest);
 
@@ -65,7 +70,7 @@ describe("Solar generation validation", () => {
       .toBe(false);
   });
 
-  it("accepts a reading with nullable power and valid energy", () => {
+  it("rejects a reading with nullable power even with valid energy", () => {
     const request = {
       ...validRequest,
       body: {
@@ -77,7 +82,7 @@ describe("Solar generation validation", () => {
     };
 
     expect(createSolarGenerationSchema.safeParse(request).success)
-      .toBe(true);
+      .toBe(false);
   });
 
   it("rejects a reading with a timestamp lacking a timezone", () => {

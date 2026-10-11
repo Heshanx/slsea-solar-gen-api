@@ -1,5 +1,6 @@
 
 import sql from "../config/database.js";
+import { AppError } from "../utils/AppError.js";
 
 export const findById = async (id, siteId) => {
   const result = await sql`
@@ -56,7 +57,7 @@ export const findAllBySite = async (
           ? sql`and recorded_at <= ${to}`
           : sql``
       }
-    order by recorded_at desc
+    order by recorded_at desc, id desc
     limit ${limit}
     offset ${offset}
   `;
@@ -92,7 +93,11 @@ export const create = async ({
   windSpeedMs,
   humidityPercent
 }) => {
-  const result = await sql`
+  return sql.begin(async tx => {
+  const sites = await tx`select id from public.solar_sites
+    where id = ${siteId} and deleted_at is null and is_active for share`;
+  if (!sites[0]) throw new AppError("Active solar site not found", 404);
+  const result = await tx`
     insert into public.weather_data (
       site_id,
       recorded_at,
@@ -105,11 +110,11 @@ export const create = async ({
     values (
       ${siteId},
       ${recordedAt},
-      ${temperatureC},
-      ${irradianceWM2},
-      ${cloudCoverPercent},
-      ${windSpeedMs},
-      ${humidityPercent}
+      ${temperatureC ?? null},
+      ${irradianceWM2 ?? null},
+      ${cloudCoverPercent ?? null},
+      ${windSpeedMs ?? null},
+      ${humidityPercent ?? null}
     )
     returning
       id,
@@ -124,4 +129,5 @@ export const create = async ({
   `;
 
   return result[0];
+  });
 };

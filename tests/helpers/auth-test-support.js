@@ -1,3 +1,5 @@
+export const testAssignments = new Map();
+let principalNumber = 0;
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
 
 export const testIssuer = "https://issuer.test.example/";
@@ -42,12 +44,16 @@ export const issueTestToken = async ({
   installationId,
   issuer = testIssuer,
   audience = testAudience,
-  subject = "test-principal",
+  subject,
   scopes,
   expiresAt = Math.floor(Date.now() / 1000) + 300,
   notBefore,
   keyPair = signingKeyPair
 } = {}) => {
+  subject ??= `test-principal-${++principalNumber}`;
+  testAssignments.set(`${issuer}|${subject}`, { actorType, installationId, jurisdiction,
+    scopes: scopes ?? (actorType === 'device' ? ['readings:write'] : actorType === 'registry_admin'
+      ? ['data:read','installations:manage'] : ['data:read']) });
   const claims = { actor_type: actorType };
 
   if (scopes !== undefined) claims.scope = scopes.join(" ");

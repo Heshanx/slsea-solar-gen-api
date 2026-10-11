@@ -1,3 +1,5 @@
+import { authorizeSiteRequest } from "../middleware/authorization.middleware.js";
+import { methodNotAllowed } from "../middleware/method-not-allowed.middleware.js";
 
 import { Router } from "express";
 
@@ -55,7 +57,7 @@ const router = Router();
  */
 router.post(
   "/:siteId/weather",
-  validate(createWeatherSchema),
+  authorizeSiteRequest, validate(createWeatherSchema),
   createWeather
 );
 
@@ -137,13 +139,13 @@ router.post(
 
 router.get(
   "/:siteId/weather/forecast",
-  validate(getWeatherForecastSchema),
+  authorizeSiteRequest, validate(getWeatherForecastSchema),
   getWeatherForecast
 );
 
 router.get(
   "/:siteId/weather",
-  validate(listWeatherSchema),
+  authorizeSiteRequest, validate(listWeatherSchema),
   getWeather
 );
 
@@ -177,8 +179,11 @@ router.get(
  */
 router.get(
   "/:siteId/weather/:id",
-  validate(getWeatherSchema),
+  authorizeSiteRequest, validate(getWeatherSchema),
   getWeatherById
 );
+
+router.all("/:siteId/weather", methodNotAllowed("GET, HEAD, POST"));
+router.all(["/:siteId/weather/forecast", "/:siteId/weather/:id"], methodNotAllowed("GET, HEAD"));
 
 export default router;

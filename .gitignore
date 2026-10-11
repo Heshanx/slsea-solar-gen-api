@@ -8,10 +8,12 @@ node_modules/
 
 # Local audit and implementation notes
 /docs/
+/.local-archive/
+/verification/
+/scripts/
 
 # Logs
 logs/
-docs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -36,3 +38,4 @@ Thumbs.db
 # Temporary files
 tmp/
 temp/
+src/config/swagger.js.before-windows-fix
