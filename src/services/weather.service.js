@@ -4,20 +4,31 @@ import * as solarSiteRepository from "../repositories/solar-site.repository.js";
 
 import { AppError } from "../utils/AppError.js";
 
-export const getWeather = async (siteId, options) => {
+const siteMatchesJurisdiction = (site, jurisdiction) => {
+  if (!jurisdiction || jurisdiction.level === "national") return true;
+  if (jurisdiction.level === "province") {
+    return site.province_id === jurisdiction.id;
+  }
+  if (jurisdiction.level === "district") {
+    return site.district_id === jurisdiction.id;
+  }
+  return false;
+};
+
+export const getWeather = async (siteId, options, jurisdiction) => {
   const site = await solarSiteRepository.findById(siteId);
 
-  if (!site) {
+  if (!site || !siteMatchesJurisdiction(site, jurisdiction)) {
     throw new AppError("Solar site not found", 404);
   }
 
   return weatherRepository.findAllBySite(siteId, options);
 };
 
-export const getWeatherById = async (siteId, id) => {
+export const getWeatherById = async (siteId, id, jurisdiction) => {
   const site = await solarSiteRepository.findById(siteId);
 
-  if (!site) {
+  if (!site || !siteMatchesJurisdiction(site, jurisdiction)) {
     throw new AppError("Solar site not found", 404);
   }
 

@@ -4,6 +4,7 @@ import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "../config/swagger.js";
 
 const router = Router();
+router.get("/openapi.json", (_req, res) => res.json(swaggerSpec));
 
 router.use(
   "/",

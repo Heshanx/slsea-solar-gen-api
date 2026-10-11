@@ -1,3 +1,6 @@
+import { fileURLToPath } from "node:url";
+import { readdirSync } from "node:fs";
+import { completeSwagger } from "./swagger-completion.js";
 import swaggerJSDoc from "swagger-jsdoc";
 
 const options = {
@@ -8,7 +11,7 @@ const options = {
       title: "SLSEA Solar Generation API",
       version: "1.0.0",
       description:
-        "REST API for solar site management, generation data, weather data, and forecasting."
+        "REST API for solar installations and generation readings, with optional weather observations and Open-Meteo weather forecasts."
     },
 
     security: [{ BearerAuth: [] }],
@@ -40,6 +43,10 @@ const options = {
       {
         name: "Solar Generation",
         description: "Solar generation data ingestion and retrieval"
+      },
+      {
+        name: "Geography",
+        description: "Jurisdiction-scoped provinces, districts, and substations"
       },
       {
         name: "Weather",
@@ -84,7 +91,7 @@ const options = {
               format: "double",
               example: 79.861244
             },
-            capacity_kw: {
+            capacityKw: {
               type: "number",
               format: "double",
               example: 100
@@ -93,15 +100,46 @@ const options = {
               type: "string",
               example: "Asia/Colombo"
             },
-            is_active: {
+            installationCode: { type: "string", nullable: true },
+            installationType: { type: "string", nullable: true },
+            operatorName: { type: "string", nullable: true },
+            commissionedAt: { type: "string", format: "date", nullable: true },
+            substation: {
+              type: "object",
+              nullable: true,
+              properties: {
+                id: { type: "string", format: "uuid" },
+                name: { type: "string" },
+                latitude: { type: "number", nullable: true },
+                longitude: { type: "number", nullable: true },
+                voltageKv: { type: "number", nullable: true }
+              }
+            },
+            district: {
+              type: "object",
+              nullable: true,
+              properties: {
+                id: { type: "string", format: "uuid" },
+                name: { type: "string" }
+              }
+            },
+            province: {
+              type: "object",
+              nullable: true,
+              properties: {
+                id: { type: "string", format: "uuid" },
+                name: { type: "string" }
+              }
+            },
+            isActive: {
               type: "boolean",
               example: true
             },
-            created_at: {
+            createdAt: {
               type: "string",
               format: "date-time"
             },
-            updated_at: {
+            updatedAt: {
               type: "string",
               format: "date-time"
             }
@@ -227,6 +265,140 @@ const options = {
               type: "string",
               format: "date-time"
             }
+          }
+        },
+
+        Province: {
+          type: "object",
+          required: ["id", "code", "name"],
+          properties: {
+            id: { type: "string", format: "uuid" },
+            code: { type: "string", example: "WP" },
+            name: { type: "string", example: "Western" },
+            createdAt: { type: "string", format: "date-time" }
+          }
+        },
+
+        District: {
+          type: "object",
+          required: ["id", "code", "name", "province"],
+          properties: {
+            id: { type: "string", format: "uuid" },
+            code: { type: "string", example: "COL" },
+            name: { type: "string", example: "Colombo" },
+            province: {
+              type: "object",
+              properties: {
+                id: { type: "string", format: "uuid" },
+                code: { type: "string" },
+                name: { type: "string" }
+              }
+            },
+            createdAt: { type: "string", format: "date-time" }
+          }
+        },
+
+        GridSubstation: {
+          type: "object",
+          required: ["id", "code", "name", "district", "province"],
+          properties: {
+            id: { type: "string", format: "uuid" },
+            code: { type: "string" },
+            name: { type: "string" },
+            latitude: { type: "number", nullable: true },
+            longitude: { type: "number", nullable: true },
+            voltageKv: { type: "number", nullable: true },
+            isActive: { type: "boolean" },
+            district: {
+              type: "object",
+              properties: {
+                id: { type: "string", format: "uuid" },
+                name: { type: "string" }
+              }
+            },
+            province: {
+              type: "object",
+              properties: {
+                id: { type: "string", format: "uuid" },
+                code: { type: "string" },
+                name: { type: "string" }
+              }
+            },
+            createdAt: { type: "string", format: "date-time" }
+          }
+        },
+
+        CollectionPagination: {
+          type: "object",
+          required: ["page", "limit", "total", "totalPages", "next", "previous"],
+          properties: {
+            page: { type: "integer", minimum: 1 },
+            limit: { type: "integer", minimum: 1, maximum: 100 },
+            total: { type: "integer", minimum: 0 },
+            totalPages: { type: "integer", minimum: 0 },
+            next: { type: "string", nullable: true },
+            previous: { type: "string", nullable: true }
+          }
+        },
+
+        ProvinceResponse: {
+          type: "object",
+          properties: {
+            success: { type: "boolean", example: true },
+            data: { $ref: "#/components/schemas/Province" }
+          }
+        },
+        DistrictResponse: {
+          type: "object",
+          properties: {
+            success: { type: "boolean", example: true },
+            data: { $ref: "#/components/schemas/District" }
+          }
+        },
+        SubstationResponse: {
+          type: "object",
+          properties: {
+            success: { type: "boolean", example: true },
+            data: { $ref: "#/components/schemas/GridSubstation" }
+          }
+        },
+        GenerationResponse: {
+          type: "object",
+          properties: {
+            success: { type: "boolean", example: true },
+            data: { $ref: "#/components/schemas/SolarGeneration" }
+          }
+        },
+        ProvinceCollection: {
+          type: "object",
+          properties: {
+            success: { type: "boolean", example: true },
+            data: { type: "array", items: { $ref: "#/components/schemas/Province" } },
+            pagination: { $ref: "#/components/schemas/CollectionPagination" }
+          }
+        },
+        DistrictCollection: {
+          type: "object",
+          properties: {
+            success: { type: "boolean", example: true },
+            data: { type: "array", items: { $ref: "#/components/schemas/District" } },
+            pagination: { $ref: "#/components/schemas/CollectionPagination" }
+          }
+        },
+        SubstationCollection: {
+          type: "object",
+          properties: {
+            success: { type: "boolean", example: true },
+            data: { type: "array", items: { $ref: "#/components/schemas/GridSubstation" } },
+            pagination: { $ref: "#/components/schemas/CollectionPagination" }
+          }
+        },
+        InstallationCollection: {
+          type: "object",
+          properties: {
+            success: { type: "boolean", example: true },
+            data: { type: "array", items: { $ref: "#/components/schemas/SolarSite" } },
+            pagination: { $ref: "#/components/schemas/CollectionPagination" }
           }
         },
 
@@ -388,9 +560,11 @@ const options = {
     }
   },
 
-  apis: [
-    "./src/routes/*.js"
-  ]
+  apis: readdirSync(new URL("../routes/", import.meta.url))
+    .filter((name) => name.endsWith(".js"))
+    .sort()
+    .map((name) => fileURLToPath(new URL(`../routes/${name}`, import.meta.url))
+      .replace(/\\/g, "/"))
 };
 
-export const swaggerSpec = swaggerJSDoc(options);
+export const swaggerSpec = completeSwagger(swaggerJSDoc(options));

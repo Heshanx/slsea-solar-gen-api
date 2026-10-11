@@ -3,7 +3,8 @@ import request from "supertest";
 import { issueTestToken } from "./helpers/auth-test-support.js";
 
 vi.mock("../src/services/solar-generation.service.js", () => ({
-  getGeneration: vi.fn()
+  getGeneration: vi.fn(),
+  getLatestGeneration: vi.fn()
 }));
 
 import app from "../src/app.js";
@@ -39,7 +40,8 @@ describe("Solar generation query semantics", () => {
         sort: "asc",
         from: "2026-01-01T00:00:00Z",
         to: "2026-01-02T00:00:00Z"
-      }
+      },
+      { level: "national" }
     );
     expect(response.body.pagination).toEqual({
       page: 2,
@@ -65,7 +67,8 @@ describe("Solar generation query semantics", () => {
         from: undefined,
         to: undefined,
         sort: "desc"
-      }
+      },
+      { level: "national" }
     );
     expect(response.body.pagination).toEqual({
       page: 1,
@@ -90,5 +93,22 @@ describe("Solar generation query semantics", () => {
       )
     ).toBe(true);
     expect(solarGenerationService.getGeneration).not.toHaveBeenCalled();
+  });
+
+  it("returns 304 with an empty body when the ETag is current", async () => {
+    const first = await request(app).get(
+      `/api/v1/sites/${siteId}/generation`
+    ).set("Authorization", `Bearer ${await issueTestToken()}`);
+    expect(first.status).toBe(200);
+    expect(first.headers.etag).toBeTruthy();
+
+    const cached = await request(app).get(
+      `/api/v1/sites/${siteId}/generation`
+    )
+      .set("Authorization", `Bearer ${await issueTestToken()}`)
+      .set("If-None-Match", first.headers.etag);
+
+    expect(cached.status).toBe(304);
+    expect(cached.text).toBe("");
   });
 });

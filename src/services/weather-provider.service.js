@@ -4,10 +4,16 @@ import { AppError } from "../utils/AppError.js";
 
 const WEATHER_API_URL = "https://api.open-meteo.com/v1/forecast";
 
-export const getSiteWeatherForecast = async (siteId) => {
+export const getSiteWeatherForecast = async (siteId, jurisdiction) => {
   const site = await solarSiteRepository.findById(siteId);
 
-  if (!site) {
+  const inJurisdiction = !jurisdiction || jurisdiction.level === "national" ||
+    (jurisdiction.level === "province" &&
+      site?.province_id === jurisdiction.id) ||
+    (jurisdiction.level === "district" &&
+      site?.district_id === jurisdiction.id);
+
+  if (!site || !inJurisdiction) {
     throw new AppError("Solar site not found", 404);
   }
 

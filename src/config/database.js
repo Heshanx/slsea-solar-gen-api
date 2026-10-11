@@ -1,14 +1,14 @@
 import postgres from "postgres";
 import { env } from "./env.js";
+import { databaseOptions } from "./database-options.js";
+import { loadDatabaseCa } from "./database-ca.js";
 
 if (!env.databaseUrl) {
   throw new Error("DATABASE_URL is not configured");
 }
 
-const sql = postgres(env.databaseUrl, {
-  max: 5,
-  idle_timeout: 20,
-  connect_timeout: 10
-});
+// A localhost API may point at production. Remote development sessions are read-only.
+const sql = postgres(env.databaseUrl,
+  databaseOptions(env.databaseUrl, env.nodeEnv, loadDatabaseCa()));
 
 export default sql;

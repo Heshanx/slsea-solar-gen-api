@@ -13,7 +13,8 @@ vi.mock("../src/services/solar-site.service.js", () => ({
 vi.mock("../src/services/solar-generation.service.js", () => ({
   createGeneration: vi.fn(),
   getGeneration: vi.fn(),
-  getGenerationById: vi.fn()
+  getGenerationById: vi.fn(),
+  getLatestGeneration: vi.fn()
 }));
 
 vi.mock("../src/services/weather.service.js", () => ({
@@ -31,7 +32,8 @@ import {
   createDifferentTestKeyPair,
   issueTestToken,
   testAudience,
-  testIssuer
+  testIssuer,
+  testJwksUrl
 } from "./helpers/auth-test-support.js";
 
 const installationId = "11111111-1111-4111-8111-111111111111";
@@ -40,6 +42,8 @@ const otherInstallationId = "22222222-2222-4222-8222-222222222222";
 describe("OIDC JWT authentication and route authorization", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    weatherService.createWeather.mockResolvedValue({ id: 1, site_id: installationId,
+      recorded_at: "2026-01-01T00:00:00.000Z", temperature_c: 25 });
     solarSiteService.getAllSites.mockResolvedValue({ data: [], total: 0 });
     solarSiteService.createSite.mockResolvedValue({
       id: installationId,
@@ -79,6 +83,68 @@ describe("OIDC JWT authentication and route authorization", () => {
 
     expect(response.status).toBe(503);
     expect(response.body.error.code).toBe("AUTHENTICATION_UNAVAILABLE");
+  });
+
+  it("uses the active database assignment instead of authorization token claims", async () => {
+    const resolveAssignment = vi.fn().mockResolvedValue({
+      actorType: "analyst",
+      jurisdiction: { level: "district", id: installationId },
+      scopes: []
+    });
+    const assignedApp = express();
+    assignedApp.get(
+      "/protected",
+      createAuthenticationMiddleware({
+        configured: true,
+        issuer: testIssuer,
+        audience: testAudience,
+        jwksUrl: testJwksUrl,
+        algorithms: ["ES256"],
+        clockTolerance: 0
+      }, resolveAssignment),
+      (req, res) => res.json(req.auth)
+    );
+    const token = await issueTestToken({
+      actorType: "device",
+      jurisdiction: undefined,
+      installationId: otherInstallationId
+    });
+
+    const response = await request(assignedApp)
+      .get("/protected")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.actorType).toBe("analyst");
+    expect(response.body.jurisdiction).toEqual({
+      level: "district",
+      id: installationId
+    });
+    expect(resolveAssignment).toHaveBeenCalledWith(testIssuer, expect.stringMatching(/^test-principal-/));
+  });
+
+  it("fails closed when authorization assignments cannot be loaded", async () => {
+    const assignedApp = express();
+    assignedApp.get(
+      "/protected",
+      createAuthenticationMiddleware({
+        configured: true,
+        issuer: testIssuer,
+        audience: testAudience,
+        jwksUrl: testJwksUrl,
+        algorithms: ["ES256"],
+        clockTolerance: 0
+      }, vi.fn().mockRejectedValue(new Error("database offline"))),
+      (_req, res) => res.sendStatus(204)
+    );
+    const token = await issueTestToken();
+
+    const response = await request(assignedApp)
+      .get("/protected")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(response.status).toBe(503);
+    expect(response.body.error.code).toBe("AUTHORIZATION_UNAVAILABLE");
   });
 
   it("rejects missing, malformed, expired, wrongly issued, and wrong-audience tokens", async () => {
@@ -192,7 +258,7 @@ describe("OIDC JWT authentication and route authorization", () => {
     const allowed = await request(app)
       .post(`/api/v1/sites/${installationId}/generation`)
       .set("Authorization", `Bearer ${token}`)
-      .send({ recordedAt: "2026-01-01T00:00:00Z", powerKw: 4 });
+      .send({ recordedAt: "2026-01-01T00:00:00Z", voltageV: 230, energyKwh: 10, powerKw: 4 });
 
     const denied = await request(app)
       .post(`/api/v1/sites/${otherInstallationId}/generation`)
@@ -200,10 +266,45 @@ describe("OIDC JWT authentication and route authorization", () => {
       .send({ recordedAt: "2026-01-01T00:00:00Z", powerKw: 4 });
 
     expect(allowed.status).toBe(201);
+    expect(allowed.headers.location).toBe(
+      `/api/v1/sites/${installationId}/generation/1`
+    );
     expect(solarGenerationService.createGeneration).toHaveBeenCalledOnce();
     expect(denied.status).toBe(403);
     expect(denied.body.error.code).toBe("INSTALLATION_SCOPE_DENIED");
     expect(solarGenerationService.createGeneration).toHaveBeenCalledOnce();
+  });
+
+  it("returns a clean 409 response when a reading timestamp is duplicated", async () => {
+    solarGenerationService.createGeneration.mockRejectedValue({
+      isOperational: true,
+      statusCode: 409,
+      message: "A generation reading already exists for this installation and timestamp"
+    });
+    const token = await issueTestToken({
+      actorType: "device",
+      jurisdiction: undefined,
+      installationId
+    });
+
+    const response = await request(app)
+      .post(`/api/v1/sites/${installationId}/generation`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        recordedAt: "2026-01-01T00:00:00Z",
+        voltageV: 230,
+        energyKwh: 10,
+        powerKw: 4
+      });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({
+      success: false,
+      error: {
+        message: "A generation reading already exists for this installation and timestamp",
+        code: "RESOURCE_CONFLICT", details: null
+      }
+    });
   });
 
   it("denies devices registry, weather, and read access", async () => {
@@ -232,7 +333,7 @@ describe("OIDC JWT authentication and route authorization", () => {
     expect(weatherService.createWeather).not.toHaveBeenCalled();
   });
 
-  it("allows weather recording only to a registry admin with the signed scope", async () => {
+  it("allows weather recording only to a registry admin with the assigned scope", async () => {
     const scopedAdmin = await issueTestToken({
       actorType: "registry_admin",
       jurisdiction: undefined,
@@ -265,7 +366,7 @@ describe("OIDC JWT authentication and route authorization", () => {
     expect(weatherService.createWeather).toHaveBeenCalledOnce();
   });
 
-  it("keeps analysts read-only and denies unimplemented regional scoping", async () => {
+  it("keeps analysts read-only and passes assigned jurisdiction to site reads", async () => {
     const analystToken = await issueTestToken();
     const provinceToken = await issueTestToken({
       jurisdiction: {
@@ -283,14 +384,53 @@ describe("OIDC JWT authentication and route authorization", () => {
       .set("Authorization", `Bearer ${provinceToken}`);
 
     expect(write.status).toBe(403);
-    expect(regionalRead.status).toBe(403);
-    expect(regionalRead.body.error.code).toBe(
-      "JURISDICTION_SCOPE_UNAVAILABLE"
-    );
+    expect(regionalRead.status).toBe(200);
+    expect(solarSiteService.getAllSites).toHaveBeenCalledWith({
+      page: 1,
+      limit: 20,
+      active: undefined,
+      jurisdiction: { level: "province", id: installationId }
+    });
     expect(solarGenerationService.createGeneration).not.toHaveBeenCalled();
   });
 
-  it("allows registry creation but blocks site deletion until history is protected", async () => {
+  it("does not let URL casing bypass device-only ingestion or weather permissions", async () => {
+    const admin = await issueTestToken({ actorType: "registry_admin", jurisdiction: undefined });
+    const analyst = await issueTestToken();
+    for (const token of [admin, analyst]) {
+      for (const suffix of ["generation", "GENERATION", "Generation/"]) {
+        const response = await request(app).post(`/api/v1/SITES/${installationId}/${suffix}`)
+          .set("Authorization", `Bearer ${token}`).send({});
+        expect(response.status).toBe(403);
+      }
+    }
+    const weather = await request(app).post(`/api/v1/SITES/${installationId}/WEATHER`)
+      .set("Authorization", `Bearer ${admin}`).send({});
+    expect(weather.status).toBe(403);
+    expect(weatherService.createWeather).not.toHaveBeenCalled();
+    expect(solarGenerationService.createGeneration).not.toHaveBeenCalled();
+  });
+
+  it("authorizes HEAD as a read and requires explicit read permission for administrators", async () => {
+    const analyst = await issueTestToken();
+    const admin = await issueTestToken({ actorType: "registry_admin", jurisdiction: undefined, scopes: ["installations:manage"] });
+    const device = await issueTestToken({ actorType: "device", jurisdiction: undefined, installationId });
+    for (const [token, status] of [[analyst, 200], [admin, 403], [device, 403]]) {
+      const response = await request(app).head('/api/v1/sites').set('Authorization', `Bearer ${token}`);
+      expect(response.status).toBe(status);
+      expect(response.text).toBeUndefined();
+    }
+  });
+
+  it("returns an Allow header for unsupported methods on a known resource", async () => {
+    const token = await issueTestToken();
+    const response = await request(app).patch(`/api/v1/sites/${installationId}`)
+      .set('Authorization', `Bearer ${token}`).send({});
+    expect(response.status).toBe(405);
+    expect(response.headers.allow).toBe('GET, HEAD, PUT, DELETE');
+  });
+
+  it("allows registry creation and authorizes history-preserving deletion", async () => {
     const token = await issueTestToken({
       actorType: "registry_admin",
       jurisdiction: undefined
@@ -299,17 +439,14 @@ describe("OIDC JWT authentication and route authorization", () => {
     const created = await request(app)
       .post("/api/v1/sites")
       .set("Authorization", `Bearer ${token}`)
-      .send({ name: "Test Site", capacityKw: 20 });
+      .send({ name: "Test Site", capacityKw: 20, substationId: installationId, meterInverterId: "TEST-METER" });
     const deleted = await request(app)
       .delete(`/api/v1/sites/${installationId}`)
       .set("Authorization", `Bearer ${token}`);
 
     expect(created.status).toBe(201);
     expect(solarSiteService.createSite).toHaveBeenCalledOnce();
-    expect(deleted.status).toBe(409);
-    expect(deleted.body.error.code).toBe(
-      "SITE_DELETION_REQUIRES_HISTORY_PROTECTION"
-    );
-    expect(solarSiteService.deleteSite).not.toHaveBeenCalled();
+    expect(deleted.status).toBe(204);
+    expect(solarSiteService.deleteSite).toHaveBeenCalledOnce();
   });
 });

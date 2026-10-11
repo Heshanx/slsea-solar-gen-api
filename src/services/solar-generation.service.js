@@ -6,13 +6,21 @@ import * as solarSiteRepository
 
 import { AppError } from "../utils/AppError.js";
 
-export const getGeneration = async (
-  siteId,
-  options
-) => {
+const siteMatchesJurisdiction = (site, jurisdiction) => {
+  if (!jurisdiction || jurisdiction.level === "national") return true;
+  if (jurisdiction.level === "province") {
+    return site.province_id === jurisdiction.id;
+  }
+  if (jurisdiction.level === "district") {
+    return site.district_id === jurisdiction.id;
+  }
+  return false;
+};
+
+export const getGeneration = async (siteId, options, jurisdiction) => {
   const site = await solarSiteRepository.findById(siteId);
 
-  if (!site) {
+  if (!site || !siteMatchesJurisdiction(site, jurisdiction)) {
     throw new AppError("Solar site not found", 404);
   }
 
@@ -22,13 +30,10 @@ export const getGeneration = async (
   );
 };
 
-export const getGenerationById = async (
-  siteId,
-  id
-) => {
+export const getGenerationById = async (siteId, id, jurisdiction) => {
   const site = await solarSiteRepository.findById(siteId);
 
-  if (!site) {
+  if (!site || !siteMatchesJurisdiction(site, jurisdiction)) {
     throw new AppError("Solar site not found", 404);
   }
 
@@ -46,6 +51,20 @@ export const getGenerationById = async (
   }
 
   return generation;
+};
+
+export const getLatestGeneration = async (siteId, jurisdiction) => {
+  const site = await solarSiteRepository.findById(siteId, jurisdiction);
+  if (!site) {
+    throw new AppError("Solar site not found", 404);
+  }
+
+  const latest = await solarGenerationRepository.findLatestBySite(siteId);
+  if (!latest) {
+    throw new AppError("No generation reading exists for this solar site", 404);
+  }
+
+  return latest;
 };
 
 export const createGeneration = async (data) => {

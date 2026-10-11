@@ -14,40 +14,12 @@ const generationIdParam = z.object({
     .safe("Generation ID must be a safe integer")
 });
 
-const generationBody = z
-  .object({
-    recordedAt: z.string().datetime({
-      offset: true,
-      message: "recordedAt must be a valid ISO 8601 timestamp with a timezone"
-    }),
-
-    voltageV: z
-      .number()
-      .finite("Voltage must be a finite number")
-      .positive("Voltage must be greater than zero"),
-
-    powerKw: z
-      .number()
-      .finite("Power must be a finite number")
-      .min(0, "Power cannot be negative")
-      .nullable()
-      .optional(),
-
-    energyKwh: z
-      .number()
-      .finite("Energy must be a finite number")
-      .min(0, "Energy cannot be negative")
-      .nullable()
-      .optional()
-  })
-  .refine(
-    (data) =>
-      data.powerKw != null || data.energyKwh != null,
-    {
-      message: "Provide at least one of powerKw or energyKwh",
-      path: ["powerKw"]
-    }
-  );
+const generationBody = z.object({
+  recordedAt: z.string().datetime({ offset: true }),
+  voltageV: z.number().finite().min(0.01).max(999999.99),
+  powerKw: z.number().finite().min(0).max(999999999.999),
+  energyKwh: z.number().finite().min(0).max(999999999.999)
+});
 
 export const createSolarGenerationSchema = z.object({
   body: generationBody,
@@ -90,5 +62,11 @@ export const listSolarGenerationSchema = z
 export const getSolarGenerationSchema = z.object({
   body: z.object({}),
   params: generationIdParam,
+  query: z.object({})
+});
+
+export const getLatestSolarGenerationSchema = z.object({
+  body: z.object({}),
+  params: siteIdParam,
   query: z.object({})
 });

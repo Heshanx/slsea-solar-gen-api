@@ -21,15 +21,8 @@ export const validate = (schema) => {
       );
     }
 
+    // Keep parsed values separate from Express request properties.
     req.validated = result.data;
-
-    if (result.data.body !== undefined) {
-      req.body = result.data.body;
-    }
-
-    if (result.data.params !== undefined) {
-      Object.assign(req.params, result.data.params);
-    }
 
     next();
   };

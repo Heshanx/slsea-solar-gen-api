@@ -1,24 +1,13 @@
-import { env } from "../config/env.js";
 import { sendAuthError } from "./authentication.middleware.js";
-
-const relativeSitePath = (req) => {
-  const pathname = new URL(
-    req.originalUrl,
-    "http://localhost"
-  ).pathname;
-  const sitePrefix = `/api/${env.apiVersion}/sites`;
-
-  return pathname.startsWith(sitePrefix)
-    ? pathname.slice(sitePrefix.length) || "/"
-    : "";
-};
 
 const deny = (res, status, code, message) =>
   sendAuthError(res, status, code, message);
 
 export const authorizeSiteRequest = (req, res, next) => {
   const actor = req.auth;
-  const path = relativeSitePath(req);
+  // Inspect the registered route, never a caller-controlled spelling of its URL.
+  // This middleware must run after Express has matched the operation.
+  const path = req.route?.path;
   const method = req.method.toUpperCase();
 
   if (!actor) {
@@ -30,7 +19,7 @@ export const authorizeSiteRequest = (req, res, next) => {
     );
   }
 
-  if (method === "GET") {
+  if (method === "GET" || method === "HEAD") {
     if (actor.actorType === "device") {
       return deny(
         res,
@@ -40,24 +29,13 @@ export const authorizeSiteRequest = (req, res, next) => {
       );
     }
 
-    if (
-      actor.actorType === "analyst" &&
-      actor.jurisdiction?.level !== "national"
-    ) {
-      return deny(
-        res,
-        403,
-        "JURISDICTION_SCOPE_UNAVAILABLE",
-        "Regional reads are unavailable until geographic scoping is implemented"
-      );
+    if (!actor.scopes?.includes("data:read")) {
+      return deny(res, 403, "READ_SCOPE_REQUIRED", "Read access requires data:read");
     }
-
     return next();
   }
 
-  const readingIngest = /^\/([^/]+)\/generation\/?$/.exec(path);
-
-  if (method === "POST" && readingIngest) {
+  if (method === "POST" && path === "/:siteId/generation") {
     if (actor.actorType !== "device") {
       return deny(
         res,
@@ -67,8 +45,11 @@ export const authorizeSiteRequest = (req, res, next) => {
       );
     }
 
+    if (!actor.scopes?.includes("readings:write")) {
+      return deny(res, 403, "WRITE_SCOPE_REQUIRED", "Reading ingestion requires readings:write");
+    }
     if (
-      readingIngest[1].toLowerCase() !== actor.installationId.toLowerCase()
+      req.params.siteId?.toLowerCase() !== actor.installationId?.toLowerCase()
     ) {
       return deny(
         res,
@@ -81,7 +62,7 @@ export const authorizeSiteRequest = (req, res, next) => {
     return next();
   }
 
-  if (method === "POST" && /^\/[^/]+\/weather\/?$/.test(path)) {
+  if (method === "POST" && path === "/:siteId/weather") {
     if (
       actor.actorType !== "registry_admin" ||
       !actor.scopes?.includes("weather:write")
@@ -106,21 +87,19 @@ export const authorizeSiteRequest = (req, res, next) => {
     );
   }
 
-  if (method === "POST" && (path === "/" || path === "")) {
+  if (!actor.scopes?.includes("installations:manage")) {
+    return deny(res, 403, "MANAGE_SCOPE_REQUIRED", "Registry changes require installations:manage");
+  }
+  if (method === "POST" && path === "/") {
     return next();
   }
 
-  if (method === "PUT" && /^\/[^/]+\/?$/.test(path)) {
+  if (method === "PUT" && path === "/:id") {
     return next();
   }
 
-  if (method === "DELETE" && /^\/[^/]+\/?$/.test(path)) {
-    return deny(
-      res,
-      409,
-      "SITE_DELETION_REQUIRES_HISTORY_PROTECTION",
-      "Site deletion is disabled until generation-history retention is enforced"
-    );
+  if (method === "DELETE" && path === "/:id") {
+    return next();
   }
 
   return deny(

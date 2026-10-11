@@ -1,43 +1,81 @@
 import { z } from "zod";
 
+const optionalText = (max, message) =>
+  z.string()
+    .trim()
+    .min(1, "Value cannot be blank")
+    .max(max, message)
+    .nullable()
+    .optional();
+
+const optionalCoordinate = (min, max, field) =>
+  z.number()
+    .finite(`${field} must be a finite number`)
+    .min(min, `${field} is out of range`)
+    .max(max, `${field} is out of range`)
+    .nullable()
+    .optional();
+
 const siteFields = {
-  name: z
-    .string()
+  name: z.string()
     .trim()
     .min(1, "Name is required")
     .max(150, "Name must not exceed 150 characters"),
 
-  location: z
-    .string()
-    .trim()
-    .max(255, "Location must not exceed 255 characters")
-    .optional(),
+  location: optionalText(
+    255,
+    "Location must not exceed 255 characters"
+  ),
 
-  latitude: z
-    .number()
-    .min(-90, "Latitude must be between -90 and 90")
-    .max(90, "Latitude must be between -90 and 90")
-    .optional(),
+  latitude: optionalCoordinate(-90, 90, "Latitude"),
 
-  longitude: z
-    .number()
-    .min(-180, "Longitude must be between -180 and 180")
-    .max(180, "Longitude must be between -180 and 180")
-    .optional(),
+  longitude: optionalCoordinate(-180, 180, "Longitude"),
 
-  capacityKw: z
-    .number()
-    .positive("Capacity must be greater than 0"),
+  capacityKw: z.number()
+    .finite("Capacity must be a finite number")
+    .min(0.001, "Capacity must be at least 0.001 kW")
+    .max(999999999.999),
 
-  timezone: z
-    .string()
+  timezone: z.string()
     .trim()
     .min(1, "Timezone is required")
-    .default("Asia/Colombo")
+    .default("Asia/Colombo"),
+
+  installationCode: optionalText(
+    100,
+    "Installation code must not exceed 100 characters"
+  ),
+
+  installationType: optionalText(
+    100,
+    "Installation type must not exceed 100 characters"
+  ),
+
+  operatorName: optionalText(
+    150,
+    "Operator name must not exceed 150 characters"
+  ),
+
+  commissionedAt: z.string()
+    .date("Commissioned date must use YYYY-MM-DD format")
+    .nullable()
+    .optional(),
+
+  substationId: z.string()
+    .uuid("Invalid substation ID")
+    .nullable()
+    .optional(),
+
+  meterInverterId: z.string()
+    .trim()
+    .min(1, "Meter/inverter ID cannot be blank")
+    .max(150, "Meter/inverter ID must not exceed 150 characters")
+    .nullable()
+    .optional()
 };
 
 export const createSolarSiteSchema = z.object({
-  body: z.object(siteFields),
+  body: z.object({ ...siteFields, substationId: z.string().uuid(), meterInverterId: z.string().trim().min(1).max(150) }),
   params: z.object({}),
   query: z.object({})
 });
@@ -45,7 +83,12 @@ export const createSolarSiteSchema = z.object({
 export const updateSolarSiteSchema = z.object({
   body: z.object({
     ...siteFields,
-    isActive: z.boolean().default(true)
+    substationId: z.string().uuid(),
+    meterInverterId: z.string().trim().min(1).max(150),
+    timezone: z.string()
+      .trim()
+      .min(1, "Timezone is required"),
+    isActive: z.boolean()
   }),
   params: z.object({
     id: z.string().uuid("Invalid solar site ID")
@@ -67,28 +110,14 @@ export const listSolarSitesSchema = z.object({
   body: z.object({}),
   params: z.object({}),
   query: z.object({
-    page: z.coerce
-      .number()
-      .int()
-      .min(1)
-      .default(1),
+    page: z.coerce.number().int().min(1).default(1),
 
-    limit: z.coerce
-      .number()
-      .int()
-      .min(1)
-      .max(100)
-      .default(20),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
 
-    active: z
-      .enum(["true", "false"])
+    active: z.enum(["true", "false"])
       .optional()
-      .transform((value) => {
-        if (value === undefined) {
-          return undefined;
-        }
-
-        return value === "true";
-      })
+      .transform((value) =>
+        value === undefined ? undefined : value === "true"
+      )
   })
 });

@@ -1,3 +1,4 @@
+import { errorBody } from "../utils/error-response.js";
 import { rateLimit } from "express-rate-limit";
 
 export const createApiRateLimiter = (options = {}) =>
@@ -14,12 +15,7 @@ export const createApiRateLimiter = (options = {}) =>
       req.path.startsWith("/docs"),
 
     handler: (req, res) =>
-      res.status(429).json({
-        success: false,
-        error: {
-          message: "Too many requests. Please try again later."
-        }
-      }),
+      res.status(429).json(errorBody("RATE_LIMITED", "Too many requests. Please try again later.")),
 
     ...options
   });
